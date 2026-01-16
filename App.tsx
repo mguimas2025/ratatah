@@ -9,7 +9,11 @@ import {
   Github, 
   Save, 
   Share2,
-  Clock
+  Clock,
+  ArrowRight,
+  QrCode,
+  Copy,
+  Check
 } from 'lucide-react';
 import { Participant, Expense, AppState } from './types';
 
@@ -20,6 +24,7 @@ const App: React.FC = () => {
   const [eventName, setEventName] = useState('');
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   
   // Participant Input
   const [newFriendName, setNewFriendName] = useState('');
@@ -103,6 +108,12 @@ const App: React.FC = () => {
     alert("Função de compartilhamento em desenvolvimento!");
   };
 
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   // --- Calculations ---
   const totalAmount = useMemo(() => 
     expenses.reduce((acc, curr) => acc + curr.amount, 0)
@@ -111,6 +122,58 @@ const App: React.FC = () => {
   const perPerson = useMemo(() => 
     participants.length > 0 ? totalAmount / participants.length : 0
   , [totalAmount, participants]);
+
+  // --- Settlement Logic (Who pays whom) ---
+  const settlements = useMemo(() => {
+    if (participants.length === 0) return [];
+
+    // Calculate balances for each person
+    const balances = participants.map(p => {
+      const paid = expenses
+        .filter(e => e.participantId === p.id)
+        .reduce((acc, curr) => acc + curr.amount, 0);
+      return {
+        id: p.id,
+        name: p.name,
+        pix: p.pixKey,
+        net: paid - perPerson
+      };
+    });
+
+    const debtors = balances
+      .filter(b => b.net < -0.01)
+      .sort((a, b) => a.net - b.net)
+      .map(d => ({ ...d, net: Math.abs(d.net) }));
+    
+    const creditors = balances
+      .filter(b => b.net > 0.01)
+      .sort((a, b) => b.net - a.net)
+      .map(c => ({ ...c }));
+
+    const transactions: { id: string, from: string, to: string, amount: number, pix?: string }[] = [];
+    let dIdx = 0;
+    let cIdx = 0;
+
+    while (dIdx < debtors.length && cIdx < creditors.length) {
+      const amountToPay = Math.min(debtors[dIdx].net, creditors[cIdx].net);
+      
+      transactions.push({
+        id: crypto.randomUUID(),
+        from: debtors[dIdx].name,
+        to: creditors[cIdx].name,
+        amount: amountToPay,
+        pix: creditors[cIdx].pix
+      });
+
+      debtors[dIdx].net -= amountToPay;
+      creditors[cIdx].net -= amountToPay;
+
+      if (debtors[dIdx].net < 0.01) dIdx++;
+      if (creditors[cIdx].net < 0.01) cIdx++;
+    }
+
+    return transactions;
+  }, [participants, expenses, perPerson]);
 
   // Format currency
   const formatBRL = (val: number) => 
@@ -128,19 +191,16 @@ const App: React.FC = () => {
             <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-none">RATATAH</h1>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
               <span className="w-1.5 h-1.5 bg-slate-300 rounded-full"></span>
-              Local Storage Mode
+              Racha-conta da galera
             </span>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
-            <Github className="w-4 h-4" />
-            Repo
-          </button>
           <button 
             onClick={handleReset}
             className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shadow-sm"
+            title="Resetar dados"
           >
             <RotateCcw className="w-5 h-5" />
           </button>
@@ -165,16 +225,17 @@ const App: React.FC = () => {
           </div>
           <button 
             className="flex items-center justify-center gap-3 px-8 py-5 bg-[#0B1120] text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 whitespace-nowrap"
-            onClick={() => alert('Dados salvos automaticamente!')}
+            onClick={() => alert('Dados salvos no Local Storage!')}
           >
             <Save className="w-5 h-5" />
-            Salvar no Navegador
+            Salvar Estado
           </button>
         </div>
 
-        {/* Row 2: Participants Card */}
+        {/* Left Column: Input and Lists */}
         <div className="lg:col-span-7 space-y-6">
-          <section className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100 h-fit">
+          {/* Participants Card */}
+          <section className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100">
             <h2 className="text-sm font-black text-slate-900 flex items-center gap-2 mb-6 uppercase tracking-wide">
               <Users className="w-5 h-5 text-[#FF5C00]" />
               1. Participantes
@@ -229,7 +290,7 @@ const App: React.FC = () => {
           </section>
 
           {/* Registration Card */}
-          <section className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100 h-fit">
+          <section className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100">
             <h2 className="text-sm font-black text-slate-900 flex items-center gap-2 mb-6 uppercase tracking-wide">
               <DollarSign className="w-5 h-5 text-[#FF5C00]" />
               2. Registro de Gastos
@@ -305,14 +366,14 @@ const App: React.FC = () => {
           </section>
         </div>
 
-        {/* Row 2: Right Column (Summary) */}
+        {/* Right Column: Summary and Settlements */}
         <div className="lg:col-span-5">
-          <section className="bg-[#0B1120] rounded-[48px] p-8 md:p-10 shadow-2xl shadow-slate-300 text-white sticky top-6 overflow-hidden min-h-[400px]">
+          <section className="bg-[#0B1120] rounded-[48px] p-8 md:p-10 shadow-2xl shadow-slate-300 text-white sticky top-6 overflow-hidden min-h-[500px] flex flex-col">
             {/* Background elements */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-slate-800 rounded-full blur-[100px] opacity-20 pointer-events-none"></div>
             
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-12">
+            <div className="relative z-10 flex flex-col h-full">
+              <div className="flex items-center justify-between mb-8">
                 <h2 className="text-sm font-black uppercase tracking-[0.2em] text-[#FF5C00]">
                   3. Fechamento
                 </h2>
@@ -324,7 +385,7 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-10">
+              <div className="grid grid-cols-2 gap-4 mb-8">
                 <div className="bg-white/5 border border-white/10 p-6 rounded-[32px] backdrop-blur-md">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">
                     Total Geral
@@ -343,32 +404,81 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-6">
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">
-                  Resumo de Débitos
-                </h3>
-                {participants.length === 0 ? (
-                  <div className="py-10 text-center border-2 border-dashed border-white/5 rounded-[32px]">
-                    <span className="text-slate-500 text-sm font-medium">Adicione participantes para ver o fechamento</span>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
+              {/* Transactions Section */}
+              <div className="flex-1 space-y-6">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-[#FF5C00] mb-4">
+                    Sugestão de Pagamentos
+                  </h3>
+                  {settlements.length === 0 ? (
+                    <div className="py-8 text-center border border-dashed border-white/10 rounded-[32px]">
+                      <span className="text-slate-500 text-sm font-medium">Tudo zerado!</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {settlements.map((s) => (
+                        <div key={s.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-slate-200">{s.from}</span>
+                              <ArrowRight className="w-4 h-4 text-[#FF5C00]" />
+                              <span className="font-bold text-slate-200">{s.to}</span>
+                            </div>
+                            <span className="font-black text-white">{formatBRL(s.amount)}</span>
+                          </div>
+                          {s.pix && (
+                            <div className="flex items-center justify-between gap-2 mt-1">
+                                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 bg-white/5 px-2 py-1 rounded-lg w-fit overflow-hidden">
+                                    <QrCode className="w-3 h-3 shrink-0" />
+                                    <span className="truncate max-w-[150px]">PIX: {s.pix}</span>
+                                </div>
+                                <button 
+                                    onClick={() => copyToClipboard(s.pix!, s.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-[#FF5C00] hover:bg-orange-600 text-white rounded-lg text-[10px] font-black transition-all shadow-lg shadow-orange-950/20 active:scale-95"
+                                >
+                                    {copiedId === s.id ? (
+                                        <>
+                                            <Check className="w-3 h-3" />
+                                            COPIADO
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy className="w-3 h-3" />
+                                            COPIAR PIX
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Net Balances List */}
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-4">
+                    Saldos Individuais
+                  </h3>
+                  <div className="space-y-2">
                     {participants.map(p => {
                       const paid = expenses.filter(e => e.participantId === p.id).reduce((acc, curr) => acc + curr.amount, 0);
                       const balance = paid - perPerson;
-                      const isNegative = balance < 0;
+                      const isNegative = balance < -0.01;
+                      const isPositive = balance > 0.01;
 
                       return (
-                        <div key={p.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                          <span className="font-bold text-slate-300">{p.name}</span>
-                          <div className={`font-black ${isNegative ? 'text-red-400' : balance > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
-                            {isNegative ? '-' : balance > 0 ? '+' : ''} {formatBRL(Math.abs(balance))}
-                          </div>
+                        <div key={p.id} className="flex items-center justify-between text-sm px-1">
+                          <span className="text-slate-400 font-medium">{p.name}</span>
+                          <span className={`font-bold ${isNegative ? 'text-red-400' : isPositive ? 'text-emerald-400' : 'text-slate-600'}`}>
+                            {isNegative ? '-' : isPositive ? '+' : ''} {formatBRL(Math.abs(balance))}
+                          </span>
                         </div>
                       );
                     })}
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </section>
