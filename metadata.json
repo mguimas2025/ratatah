@@ -1,0 +1,5 @@
+{
+  "name": "RATATAH - Split Your Bills",
+  "description": "A clean and modern bill-splitting application inspired by the 'Ratatah' design, featuring local storage persistence, participant management, and expense tracking.",
+  "requestFramePermissions": []
+}
