@@ -364,16 +364,49 @@ const App: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                 {participants.map(p => (
-                  <div key={p.id} className="group flex items-center justify-between p-4 bg-slate-950/60 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all">
-                    <div className="min-w-0 pr-4">
-                      <p className="font-bold text-slate-200 truncate">{p.name}</p>
-                      {p.pixKey && <p className="text-[10px] text-slate-500 font-mono truncate uppercase">{p.pixKey}</p>}
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={() => setParticipants(participants.filter(x => x.id !== p.id))} className="p-2 text-slate-700 hover:text-red-500 transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                  <div key={p.id} className="group flex flex-col gap-3 p-4 bg-slate-950/60 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all">
+                    {editingParticipantId === p.id ? (
+                      <div className="space-y-2 w-full">
+                        <input 
+                          autoFocus
+                          type="text" 
+                          value={editName} 
+                          onChange={(e) => setEditName(e.target.value)} 
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500/20"
+                          placeholder="Nome"
+                        />
+                        <input 
+                          type="text" 
+                          value={editPix} 
+                          onChange={(e) => setEditPix(e.target.value)} 
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500/20"
+                          placeholder="Chave Pix"
+                        />
+                        <div className="flex gap-2 justify-end pt-1">
+                          <button onClick={() => setEditingParticipantId(null)} className="p-2 text-slate-500 hover:text-slate-300 transition-colors">
+                            <X className="w-4 h-4" />
+                          </button>
+                          <button onClick={saveEdit} className="p-2 text-emerald-500 hover:text-emerald-400 transition-colors">
+                            <Check className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between w-full">
+                        <div className="min-w-0 pr-4">
+                          <p className="font-bold text-slate-200 truncate">{p.name}</p>
+                          {p.pixKey && <p className="text-[10px] text-slate-500 font-mono truncate uppercase">{p.pixKey}</p>}
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => startEditing(p)} className="p-2 text-slate-700 hover:text-orange-500 transition-colors">
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setParticipants(participants.filter(x => x.id !== p.id))} className="p-2 text-slate-700 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
