@@ -8,7 +8,7 @@ import {
   RotateCcw, 
   Save, 
   Share2,
-  Clock,
+  ReceiptText,
   ArrowRight,
   QrCode,
   Copy,
@@ -78,6 +78,7 @@ const App: React.FC = () => {
 
   const removeFromHistory = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    if (!confirm("Remover este rolê do seu histórico local?")) return;
     try {
       const historyStr = localStorage.getItem('ratatah_history');
       const history = historyStr ? JSON.parse(historyStr) : [];
@@ -272,7 +273,7 @@ const App: React.FC = () => {
       <header className="flex items-center justify-between py-6">
         <div className="flex items-center gap-2 md:gap-3">
           <div className="w-10 h-10 md:w-12 md:h-12 bg-[#FF5C00] rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-orange-950/20">
-            <Clock className="text-white w-6 h-6 md:w-7 md:h-7" />
+            <ReceiptText className="text-white w-6 h-6 md:w-7 md:h-7" />
           </div>
           <div>
             <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none uppercase">RATATAH</h1>
@@ -303,15 +304,15 @@ const App: React.FC = () => {
       </header>
 
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6">
-        {/* Header Name Card */}
-        <div className="lg:col-span-12 bg-slate-900/50 rounded-3xl p-6 md:p-8 border border-slate-800">
-          <label className="text-[9px] font-black text-[#FF5C00] uppercase tracking-widest mb-1.5 block">Nome do Rolê</label>
+        {/* Header Name Card - Enhanced Visual Weight */}
+        <div className="lg:col-span-12 bg-slate-900/50 rounded-3xl p-6 md:p-10 border border-slate-800 shadow-inner">
+          <label className="text-[11px] md:text-xs font-black text-[#FF5C00] uppercase tracking-[0.3em] mb-3 block">Nome do Rolê</label>
           <input 
             type="text" 
             placeholder="Ex: Resenha de Sexta"
             value={eventName}
             onChange={(e) => setEventName(e.target.value)}
-            className="text-3xl md:text-5xl font-black text-white placeholder-slate-800 outline-none w-full border-none focus:ring-0 p-0 bg-transparent"
+            className="text-4xl md:text-7xl font-black text-white placeholder-slate-800 outline-none w-full border-none focus:ring-0 p-0 bg-transparent tracking-tighter"
           />
         </div>
 
@@ -323,7 +324,7 @@ const App: React.FC = () => {
             </h2>
             <div className="flex flex-col gap-3">
               <input type="text" placeholder="Nome do amigo" value={newFriendName} onChange={(e) => setNewFriendName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-5 py-3.5 text-white font-semibold focus:ring-1 focus:ring-orange-500/30 outline-none text-sm" />
-              <div className="flex gap-3 items-stretch">
+              <div className="flex gap-3 items-stretch h-[50px]">
                 <input type="text" placeholder="Chave Pix (opcional)" value={newFriendPix} onChange={(e) => setNewFriendPix(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-5 py-3.5 text-white font-semibold focus:ring-1 focus:ring-orange-500/30 outline-none text-sm" />
                 <button onClick={() => { if(!newFriendName) return; setParticipants([...participants, { id: generateId(), name: newFriendName, pixKey: newFriendPix }]); setNewFriendName(''); setNewFriendPix(''); }} className="w-12 bg-[#FF5C00] text-white rounded-xl flex items-center justify-center hover:bg-orange-600 shrink-0 transition-transform active:scale-95"><Plus className="w-6 h-6" strokeWidth={3} /></button>
               </div>
@@ -464,7 +465,7 @@ const App: React.FC = () => {
             </div>
           </section>
 
-          {/* Recent History Card */}
+          {/* Recent History Card - Permanent Trash Icon */}
           {recentEvents.length > 0 && (
             <section className="bg-slate-900/30 rounded-[32px] p-6 md:p-8 border border-slate-800">
               <h2 className="text-[10px] font-black text-slate-500 flex items-center gap-2 mb-5 uppercase tracking-[0.15em]">
@@ -472,23 +473,23 @@ const App: React.FC = () => {
               </h2>
               <div className="flex flex-col gap-2">
                 {recentEvents.map((event) => (
-                  <div key={event.id} className="group relative">
+                  <div key={event.id} className="flex items-center gap-2 w-full">
                     <button 
                       onClick={() => { window.history.replaceState({}, '', `?id=${event.id}`); loadEvent(event.id); }} 
-                      className={`w-full flex items-center justify-between p-3.5 rounded-xl transition-all border ${eventId === event.id ? 'bg-[#FF5C00]/10 border-[#FF5C00]/50' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}
+                      className={`flex-1 flex items-center justify-between p-3.5 rounded-xl transition-all border ${eventId === event.id ? 'bg-[#FF5C00]/10 border-[#FF5C00]/50' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}
                     >
-                      <div className="flex flex-col items-start overflow-hidden text-left pr-8">
+                      <div className="flex flex-col items-start overflow-hidden text-left pr-4">
                         <span className={`font-bold truncate text-xs ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-300'}`}>{event.name}</span>
                         <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">ID: {event.id?.split('-')[0] || '---'}</span>
                       </div>
-                      <ChevronRight className={`w-3.5 h-3.5 ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-700'}`} />
+                      <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-700'}`} />
                     </button>
                     <button 
                       onClick={(e) => removeFromHistory(e, event.id)}
-                      className="absolute right-10 top-1/2 -translate-y-1/2 p-2 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-600 hover:text-red-500 transition-colors shrink-0"
                       title="Excluir do histórico"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
