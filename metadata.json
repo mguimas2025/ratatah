@@ -1,5 +1,5 @@
 {
-  "name": "RATATAH - Split Your Bills",
-  "description": "A clean and modern bill-splitting application inspired by the 'Ratatah' design, featuring local storage persistence, participant management, and expense tracking.",
+  "name": "RATATAH",
+  "description": "RATATAH é o aplicativo ideal para dividir contas de forma simples e justa entre amigos. Sabe aquele churrasco, viagem ou jantar em que cada um paga uma parte? O RATATAH calcula tudo para você. Basta criar um evento, adicionar os gastos de cada pessoa e o aplicativo mostra na hora quem deve pagar o quê a quem, com o mínimo de transferências possível. Chega de confusão na hora de acertar as contas. Com o RATATAH, a amizade continua e as finanças ficam em dia!",
   "requestFramePermissions": []
 }
