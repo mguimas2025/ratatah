@@ -19,7 +19,10 @@ import {
   Pencil,
   X,
   TrendingUp,
-  Wallet
+  Wallet,
+  Cloud,
+  RefreshCw,
+  Link
 } from 'lucide-react';
 import { Participant, Expense } from './types';
 import { supabase } from './supabaseClient';
@@ -27,6 +30,17 @@ import { supabase } from './supabaseClient';
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return Math.random().toString(36).substring(2, 11);
+};
+
+// Gera um código de sincronização amigável
+const generateSyncToken = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Sem O, 0, I, 1 para evitar confusão
+  let token = '';
+  for (let i = 0; i < 8; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+    if (i === 3) token += '-';
+  }
+  return token;
 };
 
 const App: React.FC = () => {
@@ -40,6 +54,11 @@ const App: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [recentEvents, setRecentEvents] = useState<{id: string, name: string}[]>([]);
   
+  // Sync States
+  const [syncToken, setSyncToken] = useState<string>('');
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [newSyncInput, setNewSyncInput] = useState('');
+
   // Participant Editing State
   const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -52,66 +71,67 @@ const App: React.FC = () => {
   const [amount, setAmount] = useState<string>('');
   const [description, setDescription] = useState('');
 
-  // --- Sync Logic ---
+  // --- Initial Setup & Sync Token ---
   useEffect(() => {
+    // Carregar ou gerar Token de Sincronização
+    let token = localStorage.getItem('ratatah_sync_token');
+    if (!token) {
+      token = generateSyncToken();
+      localStorage.setItem('ratatah_sync_token', token);
+    }
+    setSyncToken(token);
+
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
     if (id) {
       loadEvent(id);
     }
-    loadHistory();
+    loadHistory(token);
   }, []);
 
-  const addToHistory = (id: string, name: string) => {
-    try {
-      const historyStr = localStorage.getItem('ratatah_history');
-      const history = historyStr ? JSON.parse(historyStr) : [];
-      const newEntry = { id, name };
-      const filtered = history.filter((item: any) => item && item.id !== id);
-      const updated = [newEntry, ...filtered].slice(0, 10);
-      localStorage.setItem('ratatah_history', JSON.stringify(updated));
-      setRecentEvents(updated);
-    } catch (e) {
-      console.error("Error updating history", e);
-    }
+  const handleUpdateSyncToken = (newToken: string) => {
+    if (!newToken || newToken.length < 4) return alert("Token inválido");
+    const formatted = newToken.toUpperCase().trim();
+    localStorage.setItem('ratatah_sync_token', formatted);
+    setSyncToken(formatted);
+    loadHistory(formatted);
+    setShowSyncModal(false);
+    setNewSyncInput('');
+    alert("Dispositivo sincronizado! Seu histórico agora será carregado da nuvem.");
   };
 
-  const removeFromHistory = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    if (!confirm("Remover este rolê do seu histórico local?")) return;
+  const loadHistory = async (token: string) => {
     try {
+      // 1. Carrega histórico local
       const historyStr = localStorage.getItem('ratatah_history');
-      const history = historyStr ? JSON.parse(historyStr) : [];
-      const updated = history.filter((item: any) => item && item.id !== id);
-      localStorage.setItem('ratatah_history', JSON.stringify(updated));
-      setRecentEvents(updated);
-    } catch (err) {
-      console.error("Error removing from history", err);
-    }
-  };
+      let localHistory = historyStr ? JSON.parse(historyStr) : [];
+      if (!Array.isArray(localHistory)) localHistory = [];
 
-  const loadHistory = async () => {
-    try {
-      const historyStr = localStorage.getItem('ratatah_history');
-      const localHistory = historyStr ? JSON.parse(historyStr) : [];
-      setRecentEvents(Array.isArray(localHistory) ? localHistory : []);
-      
-      if (Array.isArray(localHistory) && localHistory.length > 0) {
-        const ids = localHistory.map((h: any) => h?.id).filter(Boolean);
-        if (ids.length > 0) {
-          const { data } = await supabase.from('events').select('id, name').in('id', ids);
-          if (data) {
-            const validatedHistory = localHistory.map((lh: any) => {
-              const remote = data.find(d => d.id === lh.id);
-              return remote ? { id: remote.id, name: remote.name } : lh;
-            });
-            setRecentEvents(validatedHistory);
-            localStorage.setItem('ratatah_history', JSON.stringify(validatedHistory));
-          }
-        }
+      // 2. Busca rolês no Supabase vinculados a este token
+      // IMPORTANTE: Exige que a coluna sync_token exista na tabela events
+      const { data: cloudEvents, error } = await supabase
+        .from('events')
+        .select('id, name')
+        .eq('sync_token', token)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn("Erro ao carregar histórico da nuvem. Verifique se a coluna 'sync_token' existe.");
       }
+
+      // 3. Mescla Históricos (Prioridade para a nuvem)
+      const merged = [...(cloudEvents || [])];
+      localHistory.forEach((lh: any) => {
+        if (!merged.find(m => m.id === lh.id)) {
+          merged.push(lh);
+        }
+      });
+
+      const finalHistory = merged.slice(0, 15);
+      setRecentEvents(finalHistory);
+      localStorage.setItem('ratatah_history', JSON.stringify(finalHistory));
     } catch (e) {
-      console.warn('Falha ao carregar histórico local ou remoto.');
+      console.warn('Falha ao sincronizar histórico.');
     }
   };
 
@@ -135,7 +155,12 @@ const App: React.FC = () => {
         date: new Date(e.created_at).getTime()
       })));
       
-      addToHistory(id, event.name);
+      // Ao abrir um rolê, garantimos que ele está no histórico
+      const historyStr = localStorage.getItem('ratatah_history');
+      const history = historyStr ? JSON.parse(historyStr) : [];
+      const newEntry = { id, name: event.name };
+      const filtered = history.filter((item: any) => item && item.id !== id);
+      localStorage.setItem('ratatah_history', JSON.stringify([newEntry, ...filtered].slice(0, 15)));
     } catch (err: any) {
       console.error('Erro ao carregar evento:', err);
       alert("Evento não encontrado ou erro de conexão.");
@@ -151,17 +176,22 @@ const App: React.FC = () => {
     
     try {
       let currentId = eventId;
+      const eventPayload = { 
+        name: eventName, 
+        sync_token: syncToken // Salva o token do dispositivo atual para sincronização global
+      };
+
       if (!currentId) {
-        const { data, error } = await supabase.from('events').insert({ name: eventName }).select().single();
+        const { data, error } = await supabase.from('events').insert(eventPayload).select().single();
         if (error) throw error;
         currentId = data.id;
         setEventId(currentId);
         window.history.replaceState({}, '', `?id=${currentId}`);
       } else {
-        await supabase.from('events').update({ name: eventName }).eq('id', currentId);
+        await supabase.from('events').update(eventPayload).eq('id', currentId);
       }
 
-      // Sync Participants
+      // Sincronizar Participantes
       await supabase.from('participants').delete().eq('event_id', currentId);
       if (participants.length > 0) {
         const partsToInsert = participants.map(p => ({
@@ -174,42 +204,52 @@ const App: React.FC = () => {
         if (partsError) throw partsError;
 
         if (insertedParts) {
-          // Sync Expenses
+          // Sincronizar Despesas
           await supabase.from('expenses').delete().eq('event_id', currentId);
           if (expenses.length > 0) {
             const expsToInsert = expenses.map(e => {
               const localPayer = participants.find(p => p.id === e.participantId);
               const dbPayer = insertedParts.find(p => p.name === localPayer?.name);
-              
-              if (!dbPayer) return null; // Skip orphan expenses
-
+              if (!dbPayer) return null;
               return {
                 event_id: currentId,
                 participant_id: dbPayer.id,
                 amount: e.amount,
                 description: e.description
               };
-            }).filter(Boolean); // Remove nulls
+            }).filter(Boolean);
 
             if (expsToInsert.length > 0) {
               const { error: expError } = await supabase.from('expenses').insert(expsToInsert);
               if (expError) throw expError;
             }
           }
-          await loadEvent(currentId!);
         }
       } else {
         await supabase.from('expenses').delete().eq('event_id', currentId);
-        addToHistory(currentId!, eventName);
       }
+      
+      // Atualiza histórico local e nuvem
+      await loadHistory(syncToken);
+      
       setCopiedId('saved');
       setTimeout(() => setCopiedId(null), 3000);
     } catch (err: any) {
       console.error('Erro ao sincronizar:', err);
-      alert(`Erro ao salvar: ${err?.message || "Erro desconhecido"}`);
+      alert(`Erro ao salvar: ${err?.message || "Verifique se a coluna 'sync_token' existe na sua tabela 'events' no Supabase."}`);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const removeFromHistory = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!confirm("Remover do histórico local? No banco de dados, o rolê continuará existindo.")) return;
+    const historyStr = localStorage.getItem('ratatah_history');
+    const history = historyStr ? JSON.parse(historyStr) : [];
+    const updated = history.filter((item: any) => item && item.id !== id);
+    localStorage.setItem('ratatah_history', JSON.stringify(updated));
+    setRecentEvents(updated);
   };
 
   const startEditing = (p: Participant) => {
@@ -240,10 +280,9 @@ const App: React.FC = () => {
   };
 
   const removeParticipant = (id: string) => {
-    if (confirm("Deseja remover este participante? As despesas dele também serão excluídas.")) {
+    if (confirm("Remover participante? As despesas dele também sumirão.")) {
       setParticipants(prev => prev.filter(p => p.id !== id));
       setExpenses(prev => prev.filter(e => e.participantId !== id));
-      if (payerId === id) setPayerId('');
     }
   };
 
@@ -279,7 +318,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#020617] gap-4">
         <Loader2 className="w-10 h-10 text-[#FF5C00] animate-spin" />
-        <p className="font-black text-slate-500 uppercase tracking-widest text-xs">Carregando seus dados...</p>
+        <p className="font-black text-slate-500 uppercase tracking-widest text-xs">Acessando a nuvem...</p>
       </div>
     );
   }
@@ -299,19 +338,18 @@ const App: React.FC = () => {
         </div>
         
         <div className="flex gap-3">
-          {eventId && (
-            <button 
-              onClick={handleShare}
-              className="px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:bg-slate-800 transition-all flex items-center gap-2 font-bold text-xs"
-            >
-              {copiedId === 'link' ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
-              <span className="hidden sm:inline">{copiedId === 'link' ? 'COPIADO' : 'LINK'}</span>
-            </button>
-          )}
           <button 
-            onClick={() => { if(confirm("Deseja iniciar um novo rolê e limpar tudo?")) window.location.href = window.location.pathname; }}
+            onClick={() => setShowSyncModal(true)}
+            className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-orange-500 transition-all"
+            title="Sincronizar Dispositivos"
+          >
+            <Cloud className="w-5 h-5" />
+          </button>
+          
+          <button 
+            onClick={() => { if(confirm("Iniciar um novo rolê?")) window.location.href = window.location.pathname; }}
             className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-red-400 transition-all"
-            title="Reiniciar"
+            title="Limpar e Reiniciar"
           >
             <RotateCcw className="w-5 h-5" />
           </button>
@@ -322,15 +360,15 @@ const App: React.FC = () => {
       <div className="bg-gradient-to-r from-slate-900 to-slate-950 rounded-[40px] p-8 md:p-14 border border-slate-800 shadow-2xl mb-10 relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500 rounded-full blur-[120px] opacity-10 -translate-y-1/2 translate-x-1/2"></div>
         <div className="relative z-10">
-          <label className="text-xs md:text-sm font-black text-[#FF5C00] uppercase tracking-[0.4em] mb-4 block opacity-80">
+          <label className="text-[10px] md:text-xs font-black text-[#FF5C00] uppercase tracking-[0.4em] mb-4 block opacity-80">
             NOME DO ROLÊ
           </label>
           <input 
             type="text" 
-            placeholder="Ex: CHURRASCO DO SÁBADO"
+            placeholder="EX: CHURRASCO DO SÁBADO"
             value={eventName}
             onChange={(e) => setEventName(e.target.value)}
-            className="text-5xl md:text-8xl font-black text-white placeholder-slate-500 outline-none w-full border-none focus:ring-0 p-0 bg-transparent tracking-tighter uppercase leading-tight"
+            className="text-4xl md:text-7xl font-black text-white placeholder-slate-800 outline-none w-full border-none focus:ring-0 p-0 bg-transparent tracking-tighter uppercase leading-tight"
           />
         </div>
       </div>
@@ -387,28 +425,11 @@ const App: React.FC = () => {
                   <div key={p.id} className="group flex flex-col gap-3 p-4 bg-slate-950/60 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all">
                     {editingParticipantId === p.id ? (
                       <div className="space-y-2 w-full">
-                        <input 
-                          autoFocus
-                          type="text" 
-                          value={editName} 
-                          onChange={(e) => setEditName(e.target.value)} 
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500/20"
-                          placeholder="Nome"
-                        />
-                        <input 
-                          type="text" 
-                          value={editPix} 
-                          onChange={(e) => setEditPix(e.target.value)} 
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500/20"
-                          placeholder="Chave Pix"
-                        />
+                        <input autoFocus type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white font-bold text-sm outline-none" placeholder="Nome" />
+                        <input type="text" value={editPix} onChange={(e) => setEditPix(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white font-bold text-xs outline-none" placeholder="Chave Pix" />
                         <div className="flex gap-2 justify-end pt-1">
-                          <button onClick={() => setEditingParticipantId(null)} className="p-2 text-slate-500 hover:text-slate-300 transition-colors">
-                            <X className="w-4 h-4" />
-                          </button>
-                          <button onClick={saveEdit} className="p-2 text-emerald-500 hover:text-emerald-400 transition-colors">
-                            <Check className="w-4 h-4" />
-                          </button>
+                          <button onClick={() => setEditingParticipantId(null)} className="p-2 text-slate-500"><X className="w-4 h-4" /></button>
+                          <button onClick={saveEdit} className="p-2 text-emerald-500"><Check className="w-4 h-4" /></button>
                         </div>
                       </div>
                     ) : (
@@ -418,12 +439,8 @@ const App: React.FC = () => {
                           {p.pixKey && <p className="text-[10px] text-slate-500 font-mono truncate uppercase">{p.pixKey}</p>}
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => startEditing(p)} className="p-2 text-slate-700 hover:text-orange-500 transition-colors">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => removeParticipant(p.id)} className="p-2 text-slate-700 hover:text-red-500 transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <button onClick={() => startEditing(p)} className="p-2 text-slate-700 hover:text-orange-500"><Pencil className="w-4 h-4" /></button>
+                          <button onClick={() => removeParticipant(p.id)} className="p-2 text-slate-700 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       </div>
                     )}
@@ -468,7 +485,7 @@ const App: React.FC = () => {
               <div className="flex gap-2">
                 <input 
                   type="text" 
-                  placeholder="O que foi comprado? (Ex: Cerveja, Carne...)" 
+                  placeholder="O que foi comprado?" 
                   value={description} 
                   onChange={(e) => setDescription(e.target.value)} 
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:ring-2 focus:ring-orange-500/20" 
@@ -477,8 +494,8 @@ const App: React.FC = () => {
                   onClick={() => { 
                     const cleanAmount = amount.replace(/[^\d.,]/g, '').replace(',', '.');
                     const val = parseFloat(cleanAmount); 
-                    if(!payerId) return alert("Selecione quem pagou!");
-                    if(isNaN(val) || val <= 0) return alert("Insira um valor válido!"); 
+                    if(!payerId) return alert("Quem pagou?");
+                    if(isNaN(val) || val <= 0) return alert("Qual o valor?"); 
                     setExpenses([{ id: generateId(), participantId: payerId, amount: val, description, date: Date.now() }, ...expenses]); 
                     setAmount(''); 
                     setDescription(''); 
@@ -493,7 +510,7 @@ const App: React.FC = () => {
             <div className="mt-8 space-y-3">
               {expenses.map(exp => {
                 const p = participants.find(p => p.id === exp.participantId);
-                if (!p) return null; // Defensive check
+                if (!p) return null;
                 return (
                   <div key={exp.id} className="flex items-center justify-between p-5 bg-slate-950/40 rounded-2xl border border-slate-800/50 group">
                     <div className="flex items-center gap-4">
@@ -599,12 +616,24 @@ const App: React.FC = () => {
              </div>
           </section>
 
-          {/* Recent History Card */}
-          {recentEvents.length > 0 && (
-            <section className="bg-slate-900/20 rounded-[40px] p-8 border border-slate-900">
-              <h2 className="text-[10px] font-black text-slate-500 flex items-center gap-3 mb-6 uppercase tracking-[0.3em]">
-                <History className="w-5 h-5 text-slate-700" /> Histórico Local
+          {/* History Section - Now with Cloud integration */}
+          <section className="bg-slate-900/20 rounded-[40px] p-8 border border-slate-900">
+            <header className="flex items-center justify-between mb-6">
+              <h2 className="text-[10px] font-black text-slate-500 flex items-center gap-3 uppercase tracking-[0.3em]">
+                <History className="w-5 h-5 text-slate-700" /> Histórico Sincronizado
               </h2>
+              <button 
+                onClick={() => loadHistory(syncToken)}
+                className="p-2 text-slate-700 hover:text-orange-500 transition-colors"
+                title="Atualizar Nuvem"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </header>
+            
+            {recentEvents.length === 0 ? (
+              <p className="text-center py-6 text-xs text-slate-700 font-bold uppercase tracking-widest">Nenhum rolê encontrado.</p>
+            ) : (
               <div className="space-y-3">
                 {recentEvents.map((event) => (
                   <div key={event.id} className="flex items-center gap-2 group">
@@ -614,32 +643,86 @@ const App: React.FC = () => {
                     >
                       <div className="flex flex-col items-start overflow-hidden text-left pr-4">
                         <span className={`font-black truncate text-sm uppercase ${eventId === event.id ? 'text-orange-500' : 'text-slate-200'}`}>{event.name}</span>
-                        <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mt-1">ID: {event.id?.split('-')[0]}</span>
+                        <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mt-1">Nuvem ID: {event.id?.split('-')[0]}</span>
                       </div>
                       <ChevronRight className={`w-4 h-4 shrink-0 ${eventId === event.id ? 'text-orange-500' : 'text-slate-800'}`} />
                     </button>
                     <button 
                       onClick={(e) => removeFromHistory(e, event.id)}
                       className="p-5 bg-slate-950 border border-slate-900 rounded-2xl text-slate-800 hover:text-red-500 transition-all shadow-sm"
-                      title="Excluir do histórico"
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
                 ))}
               </div>
-            </section>
-          )}
+            )}
+          </section>
         </div>
       </main>
+
+      {/* Sync Modal */}
+      {showSyncModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#020617]/95 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 rounded-[40px] p-10 max-w-md w-full shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500 rounded-full blur-[60px] opacity-10 -translate-y-1/2 translate-x-1/2"></div>
+            
+            <button onClick={() => setShowSyncModal(false)} className="absolute top-6 right-6 text-slate-500 hover:text-white p-2">
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="relative z-10">
+              <Cloud className="w-12 h-12 text-orange-500 mb-6" />
+              <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic mb-2">Sincronização Global</h2>
+              <p className="text-slate-400 text-sm font-bold mb-8 leading-relaxed">Use o mesmo código em vários dispositivos para acessar seu histórico de qualquer lugar.</p>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-black text-[#FF5C00] uppercase tracking-[0.3em] mb-3 block">Seu Código Atual</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-black/40 border border-slate-800 rounded-2xl px-6 py-4 font-mono text-xl text-white font-bold tracking-widest text-center">
+                      {syncToken}
+                    </div>
+                    <button 
+                      onClick={() => { navigator.clipboard.writeText(syncToken); setCopiedId('sync'); setTimeout(() => setCopiedId(null), 2000); }}
+                      className={`p-4 rounded-2xl transition-all ${copiedId === 'sync' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                    >
+                      {copiedId === 'sync' ? <Check className="w-6 h-6" /> : <Copy className="w-6 h-6" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-slate-800">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-3 block">Conectar outro Código</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="XXXX-XXXX"
+                      value={newSyncInput}
+                      onChange={(e) => setNewSyncInput(e.target.value)}
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-mono text-center outline-none focus:ring-2 focus:ring-orange-500/20"
+                    />
+                    <button 
+                      onClick={() => handleUpdateSyncToken(newSyncInput)}
+                      className="bg-white text-slate-950 font-black px-6 py-4 rounded-2xl hover:bg-slate-200 transition-all uppercase text-xs"
+                    >
+                      CONECTAR
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="mt-20 text-center pb-12">
         <div className="space-y-2">
            <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em]">
-             RATATAH V1.0
+             RATATAH V2.0 CLOUD SYNC
            </p>
            <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.4em]">
-             FEITO COM CERVEJA E PARAFUSO
+             SUA CONTA, EM QUALQUER LUGAR
            </p>
         </div>
       </footer>
