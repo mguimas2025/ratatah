@@ -64,7 +64,8 @@ const App: React.FC = () => {
 
   const addToHistory = (id: string, name: string) => {
     try {
-      const history = JSON.parse(localStorage.getItem('ratatah_history') || '[]');
+      const historyStr = localStorage.getItem('ratatah_history');
+      const history = historyStr ? JSON.parse(historyStr) : [];
       const newEntry = { id, name };
       const filtered = history.filter((item: any) => item && item.id !== id);
       const updated = [newEntry, ...filtered].slice(0, 10);
@@ -72,6 +73,19 @@ const App: React.FC = () => {
       setRecentEvents(updated);
     } catch (e) {
       console.error("Error updating history", e);
+    }
+  };
+
+  const removeFromHistory = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      const historyStr = localStorage.getItem('ratatah_history');
+      const history = historyStr ? JSON.parse(historyStr) : [];
+      const updated = history.filter((item: any) => item && item.id !== id);
+      localStorage.setItem('ratatah_history', JSON.stringify(updated));
+      setRecentEvents(updated);
+    } catch (err) {
+      console.error("Error removing from history", err);
     }
   };
 
@@ -263,8 +277,7 @@ const App: React.FC = () => {
           <div>
             <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none uppercase">RATATAH</h1>
             <span className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1 mt-1">
-              <span className="w-1 h-1 bg-orange-500 rounded-full animate-pulse"></span>
-              Racha-conta da galera
+              O RACHA CONTA DA GALERA
             </span>
           </div>
         </div>
@@ -298,7 +311,7 @@ const App: React.FC = () => {
             placeholder="Ex: Resenha de Sexta"
             value={eventName}
             onChange={(e) => setEventName(e.target.value)}
-            className="text-2xl md:text-3xl font-black text-white placeholder-slate-800 outline-none w-full border-none focus:ring-0 p-0 bg-transparent"
+            className="text-3xl md:text-5xl font-black text-white placeholder-slate-800 outline-none w-full border-none focus:ring-0 p-0 bg-transparent"
           />
         </div>
 
@@ -310,9 +323,9 @@ const App: React.FC = () => {
             </h2>
             <div className="flex flex-col gap-3">
               <input type="text" placeholder="Nome do amigo" value={newFriendName} onChange={(e) => setNewFriendName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-5 py-3.5 text-white font-semibold focus:ring-1 focus:ring-orange-500/30 outline-none text-sm" />
-              <div className="flex gap-3">
+              <div className="flex gap-3 items-stretch">
                 <input type="text" placeholder="Chave Pix (opcional)" value={newFriendPix} onChange={(e) => setNewFriendPix(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-5 py-3.5 text-white font-semibold focus:ring-1 focus:ring-orange-500/30 outline-none text-sm" />
-                <button onClick={() => { if(!newFriendName) return; setParticipants([...participants, { id: generateId(), name: newFriendName, pixKey: newFriendPix }]); setNewFriendName(''); setNewFriendPix(''); }} className="w-12 h-12 bg-[#FF5C00] text-white rounded-xl flex items-center justify-center hover:bg-orange-600 shrink-0 transition-transform active:scale-95"><Plus className="w-6 h-6" strokeWidth={3} /></button>
+                <button onClick={() => { if(!newFriendName) return; setParticipants([...participants, { id: generateId(), name: newFriendName, pixKey: newFriendPix }]); setNewFriendName(''); setNewFriendPix(''); }} className="w-12 bg-[#FF5C00] text-white rounded-xl flex items-center justify-center hover:bg-orange-600 shrink-0 transition-transform active:scale-95"><Plus className="w-6 h-6" strokeWidth={3} /></button>
               </div>
             </div>
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -329,7 +342,7 @@ const App: React.FC = () => {
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-col overflow-hidden pr-12">
+                      <div className="flex flex-col overflow-hidden pr-12 text-left">
                         <span className="font-bold text-slate-200 truncate text-sm">{p.name}</span>
                         {p.pixKey && <span className="text-[9px] text-slate-500 truncate font-bold uppercase tracking-tight">PIX: {p.pixKey}</span>}
                       </div>
@@ -367,7 +380,7 @@ const App: React.FC = () => {
             <div className="mt-8 space-y-2">
               {expenses.map(exp => (
                 <div key={exp.id} className="flex items-center justify-between p-4 bg-slate-950/30 rounded-xl border border-slate-800/50 group hover:border-slate-600 transition-colors">
-                  <div className="flex flex-col min-w-0 pr-4">
+                  <div className="flex flex-col min-w-0 pr-4 text-left">
                     <span className="text-[8px] font-black text-[#FF5C00] uppercase tracking-widest truncate">{participants.find(p => p.id === exp.participantId)?.name || '---'}</span>
                     <span className="font-bold text-slate-200 text-xs truncate">{exp.description || 'Despesa'}</span>
                   </div>
@@ -385,7 +398,6 @@ const App: React.FC = () => {
               ))}
             </div>
 
-            {/* NEW: Save Button at the end of mobile section */}
             <div className="mt-8 pt-4 border-t border-slate-800/50">
               <button 
                 onClick={handleSaveToCloud}
@@ -416,7 +428,7 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-6 text-left">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-[#FF5C00] flex items-center gap-2"><QrCode className="w-3.5 h-3.5" /> Acertos</h3>
                 {settlements.length === 0 ? (
                   <div className="py-10 text-center border border-dashed border-slate-800 rounded-2xl">
@@ -460,13 +472,25 @@ const App: React.FC = () => {
               </h2>
               <div className="flex flex-col gap-2">
                 {recentEvents.map((event) => (
-                  <button key={event.id} onClick={() => { window.history.replaceState({}, '', `?id=${event.id}`); loadEvent(event.id); }} className={`flex items-center justify-between p-3.5 rounded-xl transition-all border ${eventId === event.id ? 'bg-[#FF5C00]/10 border-[#FF5C00]/50' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
-                    <div className="flex flex-col items-start overflow-hidden text-left">
-                      <span className={`font-bold truncate text-xs ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-300'}`}>{event.name}</span>
-                      <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">ID: {event.id?.split('-')[0] || '---'}</span>
-                    </div>
-                    <ChevronRight className={`w-3.5 h-3.5 ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-700'}`} />
-                  </button>
+                  <div key={event.id} className="group relative">
+                    <button 
+                      onClick={() => { window.history.replaceState({}, '', `?id=${event.id}`); loadEvent(event.id); }} 
+                      className={`w-full flex items-center justify-between p-3.5 rounded-xl transition-all border ${eventId === event.id ? 'bg-[#FF5C00]/10 border-[#FF5C00]/50' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}
+                    >
+                      <div className="flex flex-col items-start overflow-hidden text-left pr-8">
+                        <span className={`font-bold truncate text-xs ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-300'}`}>{event.name}</span>
+                        <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">ID: {event.id?.split('-')[0] || '---'}</span>
+                      </div>
+                      <ChevronRight className={`w-3.5 h-3.5 ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-700'}`} />
+                    </button>
+                    <button 
+                      onClick={(e) => removeFromHistory(e, event.id)}
+                      className="absolute right-10 top-1/2 -translate-y-1/2 p-2 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Excluir do histórico"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </section>
