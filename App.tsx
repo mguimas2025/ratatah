@@ -161,6 +161,7 @@ const App: React.FC = () => {
         await supabase.from('events').update({ name: eventName }).eq('id', currentId);
       }
 
+      // Sync Participants
       await supabase.from('participants').delete().eq('event_id', currentId);
       if (participants.length > 0) {
         const partsToInsert = participants.map(p => ({
@@ -168,26 +169,37 @@ const App: React.FC = () => {
           name: p.name,
           pix_key: p.pixKey
         }));
-        const { data: insertedParts } = await supabase.from('participants').insert(partsToInsert).select();
+        const { data: insertedParts, error: partsError } = await supabase.from('participants').insert(partsToInsert).select();
         
+        if (partsError) throw partsError;
+
         if (insertedParts) {
+          // Sync Expenses
           await supabase.from('expenses').delete().eq('event_id', currentId);
           if (expenses.length > 0) {
             const expsToInsert = expenses.map(e => {
               const localPayer = participants.find(p => p.id === e.participantId);
               const dbPayer = insertedParts.find(p => p.name === localPayer?.name);
+              
+              if (!dbPayer) return null; // Skip orphan expenses
+
               return {
                 event_id: currentId,
-                participant_id: dbPayer?.id,
+                participant_id: dbPayer.id,
                 amount: e.amount,
                 description: e.description
               };
-            });
-            await supabase.from('expenses').insert(expsToInsert);
+            }).filter(Boolean); // Remove nulls
+
+            if (expsToInsert.length > 0) {
+              const { error: expError } = await supabase.from('expenses').insert(expsToInsert);
+              if (expError) throw expError;
+            }
           }
           await loadEvent(currentId!);
         }
       } else {
+        await supabase.from('expenses').delete().eq('event_id', currentId);
         addToHistory(currentId!, eventName);
       }
       setCopiedId('saved');
@@ -224,6 +236,14 @@ const App: React.FC = () => {
   const deleteExpense = (id: string) => {
     if (confirm("Deseja excluir esta despesa?")) {
       setExpenses(prev => prev.filter(x => x.id !== id));
+    }
+  };
+
+  const removeParticipant = (id: string) => {
+    if (confirm("Deseja remover este participante? As despesas dele também serão excluídas.")) {
+      setParticipants(prev => prev.filter(p => p.id !== id));
+      setExpenses(prev => prev.filter(e => e.participantId !== id));
+      if (payerId === id) setPayerId('');
     }
   };
 
@@ -401,7 +421,7 @@ const App: React.FC = () => {
                           <button onClick={() => startEditing(p)} className="p-2 text-slate-700 hover:text-orange-500 transition-colors">
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => setParticipants(participants.filter(x => x.id !== p.id))} className="p-2 text-slate-700 hover:text-red-500 transition-colors">
+                          <button onClick={() => removeParticipant(p.id)} className="p-2 text-slate-700 hover:text-red-500 transition-colors">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -455,8 +475,10 @@ const App: React.FC = () => {
                 />
                 <button 
                   onClick={() => { 
-                    const val = parseFloat(amount.replace(',','.')); 
-                    if(!payerId || isNaN(val)) return; 
+                    const cleanAmount = amount.replace(/[^\d.,]/g, '').replace(',', '.');
+                    const val = parseFloat(cleanAmount); 
+                    if(!payerId) return alert("Selecione quem pagou!");
+                    if(isNaN(val) || val <= 0) return alert("Insira um valor válido!"); 
                     setExpenses([{ id: generateId(), participantId: payerId, amount: val, description, date: Date.now() }, ...expenses]); 
                     setAmount(''); 
                     setDescription(''); 
@@ -469,25 +491,29 @@ const App: React.FC = () => {
             </div>
             
             <div className="mt-8 space-y-3">
-              {expenses.map(exp => (
-                <div key={exp.id} className="flex items-center justify-between p-5 bg-slate-950/40 rounded-2xl border border-slate-800/50 group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center font-black text-orange-500 text-xs">
-                      {participants.find(p => p.id === exp.participantId)?.name.charAt(0).toUpperCase()}
+              {expenses.map(exp => {
+                const p = participants.find(p => p.id === exp.participantId);
+                if (!p) return null; // Defensive check
+                return (
+                  <div key={exp.id} className="flex items-center justify-between p-5 bg-slate-950/40 rounded-2xl border border-slate-800/50 group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center font-black text-orange-500 text-xs">
+                        {p.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-orange-500 uppercase tracking-widest">{p.name}</p>
+                        <p className="font-bold text-slate-300">{exp.description || 'Gasto sem nome'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-black text-orange-500 uppercase tracking-widest">{participants.find(p => p.id === exp.participantId)?.name}</p>
-                      <p className="font-bold text-slate-300">{exp.description || 'Gasto sem nome'}</p>
+                    <div className="flex items-center gap-4">
+                      <span className="font-black text-lg text-white">{formatBRL(exp.amount)}</span>
+                      <button onClick={() => deleteExpense(exp.id)} className="text-slate-700 hover:text-red-500 transition-colors">
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-black text-lg text-white">{formatBRL(exp.amount)}</span>
-                    <button onClick={() => deleteExpense(exp.id)} className="text-slate-700 hover:text-red-500 transition-colors">
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="mt-10 pt-6 border-t border-slate-900">
