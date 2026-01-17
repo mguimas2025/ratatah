@@ -12,15 +12,16 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0B1120;
+            background-color: #020617; /* Slate 950 - deeper dark */
             color: #F8FAFC;
+            -webkit-font-smoothing: antialiased;
         }
         /* Custom scrollbar for dark theme */
         ::-webkit-scrollbar {
-          width: 8px;
+          width: 6px;
         }
         ::-webkit-scrollbar-track {
-          background: #0B1120;
+          background: #020617;
         }
         ::-webkit-scrollbar-thumb {
           background: #1E293B;
@@ -28,6 +29,9 @@
         }
         ::-webkit-scrollbar-thumb:hover {
           background: #334155;
+        }
+        input, select {
+          font-size: 16px !important; /* Prevents iOS zoom on focus */
         }
     </style>
 <script type="importmap">
