@@ -14,7 +14,11 @@ import {
   Copy,
   Check,
   Loader2,
-  Cloud
+  Cloud,
+  History,
+  ChevronRight,
+  Pencil,
+  X
 } from 'lucide-react';
 import { Participant, Expense } from './types';
 import { supabase } from './supabaseClient';
@@ -33,7 +37,13 @@ const App: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [recentEvents, setRecentEvents] = useState<{id: string, name: string}[]>([]);
   
+  // Participant Editing State
+  const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPix, setEditPix] = useState('');
+
   // Form states
   const [newFriendName, setNewFriendName] = useState('');
   const [newFriendPix, setNewFriendPix] = useState('');
@@ -48,7 +58,39 @@ const App: React.FC = () => {
     if (id) {
       loadEvent(id);
     }
+    loadHistory();
   }, []);
+
+  const addToHistory = (id: string, name: string) => {
+    const history = JSON.parse(localStorage.getItem('ratatah_history') || '[]');
+    const newEntry = { id, name };
+    const filtered = history.filter((item: any) => item.id !== id);
+    const updated = [newEntry, ...filtered].slice(0, 10);
+    localStorage.setItem('ratatah_history', JSON.stringify(updated));
+    setRecentEvents(updated);
+  };
+
+  const loadHistory = async () => {
+    const localHistory = JSON.parse(localStorage.getItem('ratatah_history') || '[]');
+    setRecentEvents(localHistory);
+    
+    if (localHistory.length > 0) {
+      try {
+        const ids = localHistory.map((h: any) => h.id);
+        const { data } = await supabase.from('events').select('id, name').in('id', ids);
+        if (data) {
+          const validatedHistory = localHistory.map((lh: any) => {
+            const remote = data.find(d => d.id === lh.id);
+            return remote ? { id: remote.id, name: remote.name } : lh;
+          });
+          setRecentEvents(validatedHistory);
+          localStorage.setItem('ratatah_history', JSON.stringify(validatedHistory));
+        }
+      } catch (e) {
+        console.warn('Não foi possível validar o histórico remoto.');
+      }
+    }
+  };
 
   const loadEvent = async (id: string) => {
     setIsLoading(true);
@@ -69,8 +111,11 @@ const App: React.FC = () => {
         description: e.description,
         date: new Date(e.created_at).getTime()
       })));
+      
+      addToHistory(id, event.name);
     } catch (err) {
-      alert("Erro ao carregar evento. Criando um novo...");
+      console.error(err);
+      alert("Erro ao carregar evento ou conexão offline.");
       window.history.replaceState({}, '', window.location.pathname);
     } finally {
       setIsLoading(false);
@@ -84,7 +129,6 @@ const App: React.FC = () => {
     try {
       let currentId = eventId;
       
-      // 1. Upsert Event
       if (!currentId) {
         const { data, error } = await supabase.from('events').insert({ name: eventName }).select().single();
         if (error) throw error;
@@ -95,7 +139,6 @@ const App: React.FC = () => {
         await supabase.from('events').update({ name: eventName }).eq('id', currentId);
       }
 
-      // 2. Sync Participants (Delete all and re-insert for simplicity in this version)
       await supabase.from('participants').delete().eq('event_id', currentId);
       if (participants.length > 0) {
         const partsToInsert = participants.map(p => ({
@@ -105,10 +148,7 @@ const App: React.FC = () => {
         }));
         const { data: insertedParts } = await supabase.from('participants').insert(partsToInsert).select();
         
-        // Re-mapear IDs locais para IDs do Supabase se necessário, 
-        // mas aqui estamos simplificando: o App usa os IDs que vêm do banco após salvar.
         if (insertedParts) {
-          // 3. Sync Expenses
           await supabase.from('expenses').delete().eq('event_id', currentId);
           if (expenses.length > 0) {
             const expsToInsert = expenses.map(e => {
@@ -123,33 +163,44 @@ const App: React.FC = () => {
             });
             await supabase.from('expenses').insert(expsToInsert);
           }
-          // Recarregar para garantir sincronia total de IDs
           await loadEvent(currentId!);
         }
+      } else {
+        addToHistory(currentId!, eventName);
       }
       
       setCopiedId('saved');
       setTimeout(() => setCopiedId(null), 3000);
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar no servidor.");
+      alert("Erro ao sincronizar. Verifique se as variáveis do Supabase estão corretas na Vercel.");
     } finally {
       setIsSaving(false);
     }
   };
 
+  const startEditing = (p: Participant) => {
+    setEditingParticipantId(p.id);
+    setEditName(p.name);
+    setEditPix(p.pixKey || '');
+  };
+
+  const saveEdit = () => {
+    if (!editName.trim()) return;
+    setParticipants(participants.map(p => 
+      p.id === editingParticipantId ? { ...p, name: editName, pixKey: editPix } : p
+    ));
+    setEditingParticipantId(null);
+  };
+
   const handleShare = () => {
-    if (!eventId) {
-      alert("Salve o evento primeiro para gerar um link!");
-      return;
-    }
-    const url = window.location.href;
-    navigator.clipboard.writeText(url);
+    if (!eventId) return alert("Salve o evento primeiro para gerar um link!");
+    navigator.clipboard.writeText(window.location.href);
     setCopiedId('link');
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // --- Render logic (Same as before with small modifications) ---
+  // --- Calculations ---
   const totalAmount = useMemo(() => expenses.reduce((acc, curr) => acc + curr.amount, 0), [expenses]);
   const perPerson = useMemo(() => participants.length > 0 ? totalAmount / participants.length : 0, [totalAmount, participants]);
 
@@ -242,7 +293,6 @@ const App: React.FC = () => {
         </div>
 
         <div className="lg:col-span-7 space-y-6">
-          {/* Participantes */}
           <section className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100">
             <h2 className="text-xs font-black text-slate-900 flex items-center gap-2 mb-6 uppercase tracking-[0.15em]">
               <Users className="w-5 h-5 text-[#FF5C00]" /> 1. Quem está no grupo?
@@ -256,18 +306,33 @@ const App: React.FC = () => {
             </div>
             <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
               {participants.map(p => (
-                <div key={p.id} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-transparent hover:border-orange-100 transition-all">
-                  <div className="flex flex-col overflow-hidden">
-                    <span className="font-bold text-slate-800 truncate">{p.name}</span>
-                    {p.pixKey && <span className="text-[10px] text-slate-400 truncate font-bold uppercase tracking-tighter">PIX: {p.pixKey}</span>}
-                  </div>
-                  <button onClick={() => setParticipants(participants.filter(x => x.id !== p.id))} className="text-slate-300 hover:text-red-500 p-2"><Trash2 className="w-4 h-4" /></button>
+                <div key={p.id} className="group relative bg-slate-50 p-4 rounded-2xl border border-transparent hover:border-orange-100 transition-all">
+                  {editingParticipantId === p.id ? (
+                    <div className="flex flex-col gap-2">
+                      <input value={editName} onChange={e => setEditName(e.target.value)} className="bg-white px-3 py-1 rounded-lg text-sm font-bold border-none ring-1 ring-slate-200" placeholder="Nome" />
+                      <input value={editPix} onChange={e => setEditPix(e.target.value)} className="bg-white px-3 py-1 rounded-lg text-[10px] border-none ring-1 ring-slate-200" placeholder="Pix" />
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={saveEdit} className="bg-emerald-500 text-white p-1 rounded-md flex-1 text-[10px] font-black">SALVAR</button>
+                        <button onClick={() => setEditingParticipantId(null)} className="bg-slate-200 text-slate-600 p-1 rounded-md flex-1 text-[10px] font-black">CANCELAR</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="font-bold text-slate-800 truncate">{p.name}</span>
+                        {p.pixKey && <span className="text-[10px] text-slate-400 truncate font-bold uppercase tracking-tighter">PIX: {p.pixKey}</span>}
+                      </div>
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => startEditing(p)} className="p-1.5 bg-white shadow-sm rounded-lg text-slate-400 hover:text-[#FF5C00]"><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setParticipants(participants.filter(x => x.id !== p.id))} className="p-1.5 bg-white shadow-sm rounded-lg text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
           </section>
 
-          {/* Despesas */}
           <section className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100">
             <h2 className="text-xs font-black text-slate-900 flex items-center gap-2 mb-6 uppercase tracking-[0.15em]">
               <DollarSign className="w-5 h-5 text-[#FF5C00]" /> 2. O que foi pago?
@@ -284,10 +349,7 @@ const App: React.FC = () => {
                 </div>
                 <input type="text" placeholder="Ex: Cerveja e Picanha" value={description} onChange={(e) => setDescription(e.target.value)} className="flex-1 bg-slate-50 border-none rounded-2xl px-6 py-4 text-slate-900 font-semibold focus:ring-2 focus:ring-orange-100" />
               </div>
-              <button 
-                onClick={() => { const val = parseFloat(amount.replace(',','.')); if(!payerId || isNaN(val)) return; setExpenses([{ id: generateId(), participantId: payerId, amount: val, description, date: Date.now() }, ...expenses]); setAmount(''); setDescription(''); }}
-                className="w-full bg-[#0B1120] text-white rounded-2xl py-5 font-black uppercase tracking-[0.2em] text-sm shadow-xl shadow-slate-100"
-              >Adicionar Despesa</button>
+              <button onClick={() => { const val = parseFloat(amount.replace(',','.')); if(!payerId || isNaN(val)) return; setExpenses([{ id: generateId(), participantId: payerId, amount: val, description, date: Date.now() }, ...expenses]); setAmount(''); setDescription(''); }} className="w-full bg-[#0B1120] text-white rounded-2xl py-5 font-black uppercase tracking-[0.2em] text-sm shadow-xl shadow-slate-100">Adicionar Despesa</button>
             </div>
             <div className="mt-8 space-y-3">
               {expenses.map(exp => (
@@ -306,8 +368,8 @@ const App: React.FC = () => {
           </section>
         </div>
 
-        <div className="lg:col-span-5">
-          <section className="bg-[#0B1120] rounded-[48px] p-8 md:p-10 shadow-2xl shadow-slate-400 text-white sticky top-6 overflow-hidden min-h-[500px] flex flex-col">
+        <div className="lg:col-span-5 space-y-6">
+          <section className="bg-[#0B1120] rounded-[48px] p-8 md:p-10 shadow-2xl shadow-slate-400 text-white overflow-hidden flex flex-col relative min-h-[400px]">
             <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500 rounded-full blur-[120px] opacity-10 -translate-y-1/2 translate-x-1/2"></div>
             <div className="relative z-10 flex flex-col h-full">
               <div className="flex items-center justify-between mb-10">
@@ -323,7 +385,7 @@ const App: React.FC = () => {
                   <div className="text-2xl font-black">{formatBRL(perPerson)}</div>
                 </div>
               </div>
-              <div className="flex-1 space-y-8">
+              <div className="space-y-8">
                 <div>
                   <h3 className="text-[11px] font-black uppercase tracking-widest text-[#FF5C00] mb-5 flex items-center gap-2"><QrCode className="w-4 h-4" /> Sugestão de Pagamentos</h3>
                   {settlements.length === 0 ? (
@@ -348,10 +410,7 @@ const App: React.FC = () => {
                                 <QrCode className="w-3 h-3 text-slate-500 shrink-0" />
                                 <span className="text-[10px] font-mono text-slate-400 truncate">PIX: {s.pix}</span>
                               </div>
-                              <button 
-                                onClick={() => { navigator.clipboard.writeText(s.pix); setCopiedId(s.id); setTimeout(() => setCopiedId(null), 2000); }}
-                                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black transition-all ${copiedId === s.id ? 'bg-emerald-500' : 'bg-[#FF5C00]'} text-white`}
-                              >
+                              <button onClick={() => { navigator.clipboard.writeText(s.pix); setCopiedId(s.id); setTimeout(() => setCopiedId(null), 2000); }} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black transition-all ${copiedId === s.id ? 'bg-emerald-500' : 'bg-[#FF5C00]'} text-white`}>
                                 {copiedId === s.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                                 {copiedId === s.id ? 'COPIADO' : 'COPIAR PIX'}
                               </button>
@@ -365,9 +424,28 @@ const App: React.FC = () => {
               </div>
             </div>
           </section>
+
+          {recentEvents.length > 0 && (
+            <section className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100">
+              <h2 className="text-xs font-black text-slate-900 flex items-center gap-2 mb-6 uppercase tracking-[0.15em]">
+                <History className="w-5 h-5 text-[#FF5C00]" /> Meus Rolês Recentes
+              </h2>
+              <div className="flex flex-col gap-2">
+                {recentEvents.map((event) => (
+                  <button key={event.id} onClick={() => { window.history.replaceState({}, '', `?id=${event.id}`); loadEvent(event.id); }} className={`flex items-center justify-between p-4 rounded-2xl transition-all border ${eventId === event.id ? 'bg-orange-50 border-[#FF5C00]' : 'bg-slate-50 border-transparent hover:border-slate-200'}`}>
+                    <div className="flex flex-col items-start overflow-hidden">
+                      <span className={`font-bold truncate ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-700'}`}>{event.name}</span>
+                      <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{event.id.split('-')[0]}</span>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-300'}`} />
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </main>
-      <footer className="mt-12 text-center text-slate-300 text-[10px] font-black uppercase tracking-[0.3em] pb-10">Desenvolvido com ❤️ pela Ratatah Team</footer>
+      <footer className="mt-12 text-center text-slate-300 text-[10px] font-black uppercase tracking-[0.3em] pb-10">CRIADO A BASE DE CERVEJA E PARAFUSO</footer>
     </div>
   );
 };

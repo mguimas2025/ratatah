@@ -17,9 +17,13 @@ const getEnvVar = (key: string): string => {
   return '';
 };
 
-const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
-const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+// Se as variáveis estiverem vazias, usamos placeholders para evitar que o createClient quebre o app no carregamento.
+// Isso permite que o usuário veja a interface e as instruções antes de configurar o backend.
+const supabaseUrl = getEnvVar('VITE_SUPABASE_URL') || 'https://placeholder-project.supabase.co';
+const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY') || 'placeholder-key';
 
-// Initialize the client. Note: If keys are missing, the client will be created 
-// but requests will fail, which is better than a hard crash on boot.
+if (supabaseUrl === 'https://placeholder-project.supabase.co') {
+  console.warn('Supabase URL não configurada. Verifique as variáveis de ambiente VITE_SUPABASE_URL na Vercel.');
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
