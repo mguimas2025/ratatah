@@ -244,7 +244,7 @@ const App: React.FC = () => {
     const dCopy = debtors.map(d => ({...d})), cCopy = creditors.map(c => ({...c}));
     while (dIdx < dCopy.length && cIdx < cCopy.length) {
       const amountToPay = Math.min(dCopy[dIdx].net, cCopy[cIdx].net);
-      transactions.push({ id: `t-${dIdx}-${cIdx}`, from: dCopy[dIdx].name, to: cCopy[cIdx].name, amount: amountToPay, pix: cCopy[cIdx].pix });
+      transactions.push({ id: `t-${dIdx}-${cIdx}`, from: dCopy[dIdx].name, to: cCopy[dIdx].name, amount: amountToPay, pix: cCopy[cIdx].pix });
       dCopy[dIdx].net -= amountToPay; cCopy[cIdx].net -= amountToPay;
       if (dCopy[dIdx].net < 0.01) dIdx++; if (cCopy[cIdx].net < 0.01) cIdx++;
     }
@@ -310,7 +310,7 @@ const App: React.FC = () => {
             placeholder="Ex: CHURRASCO DO SÁBADO"
             value={eventName}
             onChange={(e) => setEventName(e.target.value)}
-            className="text-5xl md:text-8xl font-black text-white placeholder-slate-800 outline-none w-full border-none focus:ring-0 p-0 bg-transparent tracking-tighter uppercase leading-tight"
+            className="text-5xl md:text-8xl font-black text-white placeholder-slate-500 outline-none w-full border-none focus:ring-0 p-0 bg-transparent tracking-tighter uppercase leading-tight"
           />
         </div>
       </div>
@@ -355,7 +355,7 @@ const App: React.FC = () => {
                       setNewFriendName(''); 
                       setNewFriendPix(''); 
                     }} 
-                    className="w-14 bg-[#FF5C00] text-white rounded-2xl flex items-center justify-center hover:bg-orange-600 shadow-lg shadow-orange-950/20 transition-all active:scale-95 shrink-0"
+                    className="w-14 bg-white text-slate-950 rounded-2xl flex items-center justify-center hover:bg-slate-200 shadow-lg transition-all active:scale-95 shrink-0"
                   >
                     <Plus strokeWidth={3} />
                   </button>
@@ -464,7 +464,7 @@ const App: React.FC = () => {
                 className={`w-full flex items-center justify-center gap-3 px-8 py-5 rounded-2xl font-black text-sm uppercase tracking-[0.3em] transition-all shadow-2xl ${copiedId === 'saved' ? 'bg-emerald-600' : 'bg-[#FF5C00]'} text-white disabled:opacity-50`}
               >
                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : (copiedId === 'saved' ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />)}
-                {isSaving ? 'SINCRONIZANDO...' : (copiedId === 'saved' ? 'ROLÊ SALVO COM SUCESSO!' : 'SALVAR NA NUVEM')}
+                {isSaving ? 'SALVANDO...' : (copiedId === 'saved' ? 'SALVO!' : 'SALVAR')}
               </button>
             </div>
           </section>
@@ -577,7 +577,7 @@ const App: React.FC = () => {
       <footer className="mt-20 text-center pb-12">
         <div className="space-y-2">
            <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em]">
-             RATATAH versão 1.0
+             RATATAH V1.0
            </p>
            <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.4em]">
              FEITO COM CERVEJA E PARAFUSO
