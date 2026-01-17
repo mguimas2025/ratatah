@@ -303,7 +303,7 @@ const App: React.FC = () => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500 rounded-full blur-[120px] opacity-10 -translate-y-1/2 translate-x-1/2"></div>
         <div className="relative z-10">
           <label className="text-xs md:text-sm font-black text-[#FF5C00] uppercase tracking-[0.4em] mb-4 block opacity-80">
-            Qual é o Rolê de hoje?
+            NOME DO ROLÊ
           </label>
           <input 
             type="text" 
@@ -412,7 +412,7 @@ const App: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <input 
                   type="text" 
                   placeholder="O que foi comprado? (Ex: Cerveja, Carne...)" 
@@ -428,9 +428,9 @@ const App: React.FC = () => {
                     setAmount(''); 
                     setDescription(''); 
                   }} 
-                  className="bg-white text-slate-950 px-8 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95 shadow-xl"
+                  className="w-14 bg-white text-slate-950 rounded-2xl flex items-center justify-center hover:bg-slate-200 shadow-lg transition-all active:scale-95 shrink-0"
                 >
-                  ADICIONAR
+                  <Plus strokeWidth={3} />
                 </button>
               </div>
             </div>
@@ -574,12 +574,14 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <footer className="mt-20 text-center">
-        <div className="inline-flex items-center gap-3 px-6 py-3 bg-slate-950 rounded-full border border-slate-900 shadow-xl">
-           <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
-           <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em]">
-             Ratatah v1.0 • Built for legends
-           </span>
+      <footer className="mt-20 text-center pb-12">
+        <div className="space-y-2">
+           <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em]">
+             RATATAH versão 1.0
+           </p>
+           <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.4em]">
+             FEITO COM CERVEJA E PARAFUSO
+           </p>
         </div>
       </footer>
     </div>
