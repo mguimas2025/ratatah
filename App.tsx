@@ -14,12 +14,12 @@ import {
   Copy,
   Check,
   Loader2,
-  Cloud,
   History,
   ChevronRight,
   Pencil,
   X,
-  AlertCircle
+  TrendingUp,
+  Wallet
 } from 'lucide-react';
 import { Participant, Expense } from './types';
 import { supabase } from './supabaseClient';
@@ -138,7 +138,7 @@ const App: React.FC = () => {
       addToHistory(id, event.name);
     } catch (err: any) {
       console.error('Erro ao carregar evento:', err);
-      alert("Evento não encontrado ou erro de conexão. Iniciando novo rolê.");
+      alert("Evento não encontrado ou erro de conexão.");
       window.history.replaceState({}, '', window.location.pathname);
     } finally {
       setIsLoading(false);
@@ -151,7 +151,6 @@ const App: React.FC = () => {
     
     try {
       let currentId = eventId;
-      
       if (!currentId) {
         const { data, error } = await supabase.from('events').insert({ name: eventName }).select().single();
         if (error) throw error;
@@ -191,13 +190,11 @@ const App: React.FC = () => {
       } else {
         addToHistory(currentId!, eventName);
       }
-      
       setCopiedId('saved');
       setTimeout(() => setCopiedId(null), 3000);
     } catch (err: any) {
       console.error('Erro ao sincronizar:', err);
-      const msg = err?.message || "Erro desconhecido";
-      alert(`Erro ao sincronizar: ${msg}. Verifique a conexão ou as variáveis do Supabase.`);
+      alert(`Erro ao salvar: ${err?.message || "Erro desconhecido"}`);
     } finally {
       setIsSaving(false);
     }
@@ -255,7 +252,6 @@ const App: React.FC = () => {
   }, [participants, expenses, perPerson]);
 
   const formatBRL = (val: number) => {
-    if (typeof val !== 'number') return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
@@ -263,197 +259,277 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#020617] gap-4">
         <Loader2 className="w-10 h-10 text-[#FF5C00] animate-spin" />
-        <p className="font-black text-slate-500 uppercase tracking-widest text-[10px]">Carregando Rolê...</p>
+        <p className="font-black text-slate-500 uppercase tracking-widest text-xs">Carregando seus dados...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pb-20 px-4 md:px-6 max-w-5xl mx-auto text-slate-100">
-      <header className="flex items-center justify-between py-6">
-        <div className="flex items-center gap-2 md:gap-3">
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-[#FF5C00] rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-orange-950/20">
-            <ReceiptText className="text-white w-6 h-6 md:w-7 md:h-7" />
+    <div className="min-h-screen pb-20 px-4 md:px-6 max-w-6xl mx-auto text-slate-100 font-sans">
+      {/* App Bar */}
+      <header className="flex items-center justify-between py-8 border-b border-slate-900 mb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-gradient-to-br from-[#FF5C00] to-[#FF8A00] rounded-2xl flex items-center justify-center shadow-xl shadow-orange-950/40">
+            <ReceiptText className="text-white w-7 h-7" />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none uppercase">RATATAH</h1>
-            <span className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1 mt-1">
-              O RACHA CONTA DA GALERA
-            </span>
+            <h1 className="text-2xl font-black text-white tracking-tighter leading-none uppercase italic">RATATAH</h1>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] block mt-1">RACHA-CONTA PRO</span>
           </div>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           {eventId && (
             <button 
               onClick={handleShare}
-              className="p-2.5 md:p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:bg-slate-800 transition-all flex items-center gap-2 font-bold text-[10px]"
+              className="px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:bg-slate-800 transition-all flex items-center gap-2 font-bold text-xs"
             >
-              {copiedId === 'link' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{copiedId === 'link' ? 'LINK COPIADO' : 'COMPARTILHAR'}</span>
+              {copiedId === 'link' ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
+              <span className="hidden sm:inline">{copiedId === 'link' ? 'COPIADO' : 'LINK'}</span>
             </button>
           )}
           <button 
-            onClick={() => { if(confirm("Limpar tudo?")) window.location.href = window.location.pathname; }}
-            className="p-2.5 md:p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-red-400 transition-all shadow-sm"
+            onClick={() => { if(confirm("Deseja iniciar um novo rolê e limpar tudo?")) window.location.href = window.location.pathname; }}
+            className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-red-400 transition-all"
             title="Reiniciar"
           >
-            <RotateCcw className="w-4 h-4 md:w-5 md:h-5" />
+            <RotateCcw className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6">
-        {/* Header Name Card - Enhanced Visual Weight */}
-        <div className="lg:col-span-12 bg-slate-900/50 rounded-3xl p-6 md:p-10 border border-slate-800 shadow-inner">
-          <label className="text-[11px] md:text-xs font-black text-[#FF5C00] uppercase tracking-[0.3em] mb-3 block">Nome do Rolê</label>
+      {/* Hero: Nome do Rolê */}
+      <div className="bg-gradient-to-r from-slate-900 to-slate-950 rounded-[40px] p-8 md:p-14 border border-slate-800 shadow-2xl mb-10 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500 rounded-full blur-[120px] opacity-10 -translate-y-1/2 translate-x-1/2"></div>
+        <div className="relative z-10">
+          <label className="text-xs md:text-sm font-black text-[#FF5C00] uppercase tracking-[0.4em] mb-4 block opacity-80">
+            Qual é o Rolê de hoje?
+          </label>
           <input 
             type="text" 
-            placeholder="Ex: Resenha de Sexta"
+            placeholder="Ex: CHURRASCO DO SÁBADO"
             value={eventName}
             onChange={(e) => setEventName(e.target.value)}
-            className="text-4xl md:text-7xl font-black text-white placeholder-slate-800 outline-none w-full border-none focus:ring-0 p-0 bg-transparent tracking-tighter"
+            className="text-5xl md:text-8xl font-black text-white placeholder-slate-800 outline-none w-full border-none focus:ring-0 p-0 bg-transparent tracking-tighter uppercase leading-tight"
           />
         </div>
+      </div>
 
-        <div className="lg:col-span-7 space-y-5 md:space-y-6">
-          {/* Section 1: Participants */}
-          <section className="bg-slate-900/40 rounded-[32px] p-6 md:p-8 border border-slate-800">
-            <h2 className="text-[10px] font-black text-slate-400 flex items-center gap-2 mb-6 uppercase tracking-[0.15em]">
-              <Users className="w-4 h-4 text-[#FF5C00]" /> 1. Quem está no grupo?
-            </h2>
-            <div className="flex flex-col gap-3">
-              <input type="text" placeholder="Nome do amigo" value={newFriendName} onChange={(e) => setNewFriendName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-5 py-3.5 text-white font-semibold focus:ring-1 focus:ring-orange-500/30 outline-none text-sm" />
-              <div className="flex gap-3 items-stretch h-[50px]">
-                <input type="text" placeholder="Chave Pix (opcional)" value={newFriendPix} onChange={(e) => setNewFriendPix(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-5 py-3.5 text-white font-semibold focus:ring-1 focus:ring-orange-500/30 outline-none text-sm" />
-                <button onClick={() => { if(!newFriendName) return; setParticipants([...participants, { id: generateId(), name: newFriendName, pixKey: newFriendPix }]); setNewFriendName(''); setNewFriendPix(''); }} className="w-12 bg-[#FF5C00] text-white rounded-xl flex items-center justify-center hover:bg-orange-600 shrink-0 transition-transform active:scale-95"><Plus className="w-6 h-6" strokeWidth={3} /></button>
-              </div>
-            </div>
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {participants.map(p => (
-                <div key={p.id} className="group relative bg-slate-950/40 p-3.5 rounded-xl border border-slate-800 hover:border-orange-500/30 transition-all">
-                  {editingParticipantId === p.id ? (
-                    <div className="flex flex-col gap-2">
-                      <input value={editName} onChange={e => setEditName(e.target.value)} className="bg-slate-900 px-3 py-1.5 rounded-lg text-sm font-bold border-none ring-1 ring-slate-800 text-white outline-none" placeholder="Nome" />
-                      <input value={editPix} onChange={e => setEditPix(e.target.value)} className="bg-slate-900 px-3 py-1.5 rounded-lg text-[10px] border-none ring-1 ring-slate-800 text-slate-400 outline-none" placeholder="Pix" />
-                      <div className="flex gap-2 pt-1">
-                        <button onClick={saveEdit} className="bg-emerald-600 text-white p-1.5 rounded-md flex-1 text-[9px] font-black">SALVAR</button>
-                        <button onClick={() => setEditingParticipantId(null)} className="bg-slate-800 text-slate-400 p-1.5 rounded-md text-[9px] font-black"><X className="w-3 h-3 mx-auto"/></button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex flex-col overflow-hidden pr-12 text-left">
-                        <span className="font-bold text-slate-200 truncate text-sm">{p.name}</span>
-                        {p.pixKey && <span className="text-[9px] text-slate-500 truncate font-bold uppercase tracking-tight">PIX: {p.pixKey}</span>}
-                      </div>
-                      <div className="absolute top-1/2 -translate-y-1/2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => startEditing(p)} className="p-1.5 bg-slate-900 rounded-lg text-slate-500 hover:text-white"><Pencil className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => setParticipants(participants.filter(x => x.id !== p.id))} className="p-1.5 bg-slate-900 rounded-lg text-slate-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
-                      </div>
-                    </>
-                  )}
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        {/* Left Column: Data Entry */}
+        <div className="lg:col-span-7 space-y-8">
+          
+          {/* Step 1: Participants */}
+          <section className="bg-slate-900/40 rounded-[32px] p-8 border border-slate-800/60 backdrop-blur-sm">
+            <header className="flex items-center justify-between mb-8">
+              <h2 className="text-xs font-black text-slate-400 flex items-center gap-3 uppercase tracking-[0.2em]">
+                <Users className="w-5 h-5 text-[#FF5C00]" /> 1. Galera
+              </h2>
+              <span className="text-[10px] font-bold px-3 py-1 bg-slate-950 rounded-full text-slate-500 border border-slate-800">
+                {participants.length} PESSOAS
+              </span>
+            </header>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input 
+                  type="text" 
+                  placeholder="Nome do amigo" 
+                  value={newFriendName} 
+                  onChange={(e) => setNewFriendName(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-bold focus:ring-2 focus:ring-orange-500/20 outline-none transition-all" 
+                />
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Pix (opcional)" 
+                    value={newFriendPix} 
+                    onChange={(e) => setNewFriendPix(e.target.value)} 
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-bold focus:ring-2 focus:ring-orange-500/20 outline-none transition-all" 
+                  />
+                  <button 
+                    onClick={() => { 
+                      if(!newFriendName.trim()) return; 
+                      setParticipants([...participants, { id: generateId(), name: newFriendName, pixKey: newFriendPix }]); 
+                      setNewFriendName(''); 
+                      setNewFriendPix(''); 
+                    }} 
+                    className="w-14 bg-[#FF5C00] text-white rounded-2xl flex items-center justify-center hover:bg-orange-600 shadow-lg shadow-orange-950/20 transition-all active:scale-95 shrink-0"
+                  >
+                    <Plus strokeWidth={3} />
+                  </button>
                 </div>
-              ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                {participants.map(p => (
+                  <div key={p.id} className="group flex items-center justify-between p-4 bg-slate-950/60 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all">
+                    <div className="min-w-0 pr-4">
+                      <p className="font-bold text-slate-200 truncate">{p.name}</p>
+                      {p.pixKey && <p className="text-[10px] text-slate-500 font-mono truncate uppercase">{p.pixKey}</p>}
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => setParticipants(participants.filter(x => x.id !== p.id))} className="p-2 text-slate-700 hover:text-red-500 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 
-          {/* Section 2: Expenses */}
-          <section className="bg-slate-900/40 rounded-[32px] p-6 md:p-8 border border-slate-800">
-            <h2 className="text-[10px] font-black text-slate-400 flex items-center gap-2 mb-6 uppercase tracking-[0.15em]">
-              <DollarSign className="w-4 h-4 text-[#FF5C00]" /> 2. O que foi pago?
-            </h2>
-            <div className="space-y-3">
-              <select value={payerId} onChange={(e) => setPayerId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-5 py-3.5 text-white font-bold appearance-none focus:ring-1 focus:ring-orange-500/30 cursor-pointer outline-none text-sm">
-                <option value="" disabled className="bg-slate-950">Quem pagou?</option>
-                {participants.map(p => <option key={p.id} value={p.id} className="bg-slate-950">{p.name}</option>)}
-              </select>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative sm:w-1/3">
-                  <span className="absolute left-5 top-3.5 text-[9px] font-black text-[#FF5C00] uppercase">R$</span>
-                  <input type="text" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-5 pt-7 pb-2 text-white font-black focus:ring-1 focus:ring-orange-500/30 outline-none text-base" />
+          {/* Step 2: Expenses */}
+          <section className="bg-slate-900/40 rounded-[32px] p-8 border border-slate-800/60 backdrop-blur-sm">
+            <header className="flex items-center justify-between mb-8">
+              <h2 className="text-xs font-black text-slate-400 flex items-center gap-3 uppercase tracking-[0.2em]">
+                <DollarSign className="w-5 h-5 text-[#FF5C00]" /> 2. Gastos
+              </h2>
+              <span className="text-[10px] font-bold px-3 py-1 bg-slate-950 rounded-full text-slate-500 border border-slate-800">
+                {expenses.length} ITENS
+              </span>
+            </header>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <select 
+                  value={payerId} 
+                  onChange={(e) => setPayerId(e.target.value)} 
+                  className="bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer"
+                >
+                  <option value="" disabled>Quem pagou?</option>
+                  {participants.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <div className="relative">
+                   <span className="absolute left-6 top-1/2 -translate-y-1/2 text-orange-500 font-black text-sm">R$</span>
+                   <input 
+                    type="text" 
+                    placeholder="0,00" 
+                    value={amount} 
+                    onChange={(e) => setAmount(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-12 pr-6 py-4 text-white font-black outline-none focus:ring-2 focus:ring-orange-500/20" 
+                  />
                 </div>
-                <input type="text" placeholder="O que foi comprado?" value={description} onChange={(e) => setDescription(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-5 py-3.5 text-white font-semibold focus:ring-1 focus:ring-orange-500/30 outline-none text-sm" />
               </div>
-              <button onClick={() => { const val = parseFloat(amount.replace(',','.')); if(!payerId || isNaN(val)) return; setExpenses([{ id: generateId(), participantId: payerId, amount: val, description, date: Date.now() }, ...expenses]); setAmount(''); setDescription(''); }} className="w-full bg-white text-slate-950 rounded-xl py-4 font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-transform">Adicionar Despesa</button>
+              <div className="flex gap-3">
+                <input 
+                  type="text" 
+                  placeholder="O que foi comprado? (Ex: Cerveja, Carne...)" 
+                  value={description} 
+                  onChange={(e) => setDescription(e.target.value)} 
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:ring-2 focus:ring-orange-500/20" 
+                />
+                <button 
+                  onClick={() => { 
+                    const val = parseFloat(amount.replace(',','.')); 
+                    if(!payerId || isNaN(val)) return; 
+                    setExpenses([{ id: generateId(), participantId: payerId, amount: val, description, date: Date.now() }, ...expenses]); 
+                    setAmount(''); 
+                    setDescription(''); 
+                  }} 
+                  className="bg-white text-slate-950 px-8 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95 shadow-xl"
+                >
+                  ADICIONAR
+                </button>
+              </div>
             </div>
             
-            <div className="mt-8 space-y-2">
+            <div className="mt-8 space-y-3">
               {expenses.map(exp => (
-                <div key={exp.id} className="flex items-center justify-between p-4 bg-slate-950/30 rounded-xl border border-slate-800/50 group hover:border-slate-600 transition-colors">
-                  <div className="flex flex-col min-w-0 pr-4 text-left">
-                    <span className="text-[8px] font-black text-[#FF5C00] uppercase tracking-widest truncate">{participants.find(p => p.id === exp.participantId)?.name || '---'}</span>
-                    <span className="font-bold text-slate-200 text-xs truncate">{exp.description || 'Despesa'}</span>
+                <div key={exp.id} className="flex items-center justify-between p-5 bg-slate-950/40 rounded-2xl border border-slate-800/50 group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center font-black text-orange-500 text-xs">
+                      {participants.find(p => p.id === exp.participantId)?.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-orange-500 uppercase tracking-widest">{participants.find(p => p.id === exp.participantId)?.name}</p>
+                      <p className="font-bold text-slate-300">{exp.description || 'Gasto sem nome'}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="font-black text-white text-sm">{formatBRL(exp.amount)}</span>
-                    <button 
-                      onClick={() => deleteExpense(exp.id)} 
-                      className="text-slate-700 hover:text-red-500 p-1.5 transition-colors"
-                      title="Excluir despesa"
-                    >
-                      <Trash2 className="w-4 h-4" />
+                  <div className="flex items-center gap-4">
+                    <span className="font-black text-lg text-white">{formatBRL(exp.amount)}</span>
+                    <button onClick={() => deleteExpense(exp.id)} className="text-slate-700 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-800/50">
+            <div className="mt-10 pt-6 border-t border-slate-900">
               <button 
                 onClick={handleSaveToCloud}
                 disabled={isSaving}
-                className={`w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${copiedId === 'saved' ? 'bg-emerald-600' : 'bg-[#FF5C00]'} text-white shadow-xl shadow-orange-950/10 disabled:opacity-50`}
+                className={`w-full flex items-center justify-center gap-3 px-8 py-5 rounded-2xl font-black text-sm uppercase tracking-[0.3em] transition-all shadow-2xl ${copiedId === 'saved' ? 'bg-emerald-600' : 'bg-[#FF5C00]'} text-white disabled:opacity-50`}
               >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (copiedId === 'saved' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />)}
-                {isSaving ? 'SALVANDO...' : (copiedId === 'saved' ? 'SALVO!' : 'SALVAR')}
+                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : (copiedId === 'saved' ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />)}
+                {isSaving ? 'SINCRONIZANDO...' : (copiedId === 'saved' ? 'ROLÊ SALVO COM SUCESSO!' : 'SALVAR NA NUVEM')}
               </button>
             </div>
           </section>
         </div>
 
-        <div className="lg:col-span-5 space-y-5 md:space-y-6">
+        {/* Right Column: Results & History */}
+        <div className="lg:col-span-5 space-y-8">
+          
           {/* Section 3: Result Summary */}
-          <section className="bg-slate-950 rounded-[40px] p-7 md:p-9 shadow-2xl border border-slate-900 text-white overflow-hidden flex flex-col relative">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-orange-500 rounded-full blur-[80px] opacity-10 -translate-y-1/2 translate-x-1/2"></div>
-            <div className="relative z-10 flex flex-col h-full">
-              <h2 className="text-[9px] font-black uppercase tracking-[0.3em] text-[#FF5C00] mb-8">3. Fechamento</h2>
-              <div className="grid grid-cols-2 gap-3 mb-8">
-                <div className="bg-slate-900/40 border border-slate-800/50 p-5 rounded-2xl">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1.5 block">Total</span>
-                  <div className="text-xl font-black">{formatBRL(totalAmount)}</div>
-                </div>
-                <div className="bg-slate-900/40 border border-slate-800/50 p-5 rounded-2xl">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1.5 block">Cada um</span>
-                  <div className="text-xl font-black">{formatBRL(perPerson)}</div>
-                </div>
-              </div>
+          <section className="bg-slate-950 rounded-[40px] p-8 border border-slate-900 shadow-2xl relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500 rounded-full blur-[60px] opacity-10 -translate-y-1/2 translate-x-1/2"></div>
+             
+             <h2 className="text-[10px] font-black text-[#FF5C00] uppercase tracking-[0.4em] mb-8 flex items-center gap-3">
+               <TrendingUp className="w-4 h-4" /> 3. Fechamento
+             </h2>
 
-              <div className="space-y-6 text-left">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-[#FF5C00] flex items-center gap-2"><QrCode className="w-3.5 h-3.5" /> Acertos</h3>
+             <div className="grid grid-cols-2 gap-4 mb-10">
+                <div className="bg-slate-900/60 p-6 rounded-3xl border border-slate-800">
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Custo Total</span>
+                  <p className="text-2xl font-black text-white">{formatBRL(totalAmount)}</p>
+                </div>
+                <div className="bg-slate-900/60 p-6 rounded-3xl border border-slate-800">
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Cada um paga</span>
+                  <p className="text-2xl font-black text-orange-500">{formatBRL(perPerson)}</p>
+                </div>
+             </div>
+
+             <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Como acertar:</h3>
+                  {settlements.length > 0 && <QrCode className="w-4 h-4 text-orange-500 opacity-50" />}
+                </div>
+
                 {settlements.length === 0 ? (
-                  <div className="py-10 text-center border border-dashed border-slate-800 rounded-2xl">
-                    <p className="text-slate-600 text-[10px] font-bold uppercase tracking-widest">Tudo equilibrado!</p>
+                  <div className="py-12 text-center bg-slate-900/20 border-2 border-dashed border-slate-900 rounded-[32px]">
+                    <p className="text-slate-600 text-xs font-bold uppercase italic tracking-widest">Nada pendente ainda...</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {settlements.map((s: any) => (
-                      <div key={s.id} className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
+                      <div key={s.id} className="bg-slate-900/50 p-6 rounded-3xl border border-slate-800/80 flex flex-col gap-4">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="font-bold text-slate-300 truncate max-w-[80px]">{s.from}</span>
-                            <ArrowRight className="w-3 h-3 text-[#FF5C00] shrink-0" />
-                            <span className="font-bold text-slate-300 truncate max-w-[80px]">{s.to}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-black text-white text-sm">{s.from}</span>
+                            <ArrowRight className="w-4 h-4 text-orange-500" />
+                            <span className="font-black text-white text-sm">{s.to}</span>
                           </div>
-                          <span className="font-black text-white text-sm">{formatBRL(s.amount)}</span>
+                          <span className="font-black text-xl text-orange-500">{formatBRL(s.amount)}</span>
                         </div>
+                        
                         {s.pix && (
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 flex items-center gap-2 bg-black px-2.5 py-2 rounded-lg border border-slate-800 overflow-hidden">
-                              <span className="text-[8px] font-mono text-slate-500 truncate">{s.pix}</span>
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className="flex-1 bg-black/40 px-4 py-3 rounded-xl border border-slate-800 flex items-center justify-between group cursor-default">
+                              <span className="text-[10px] font-mono text-slate-500 truncate mr-2">{s.pix}</span>
+                              <Wallet className="w-3 h-3 text-slate-700 group-hover:text-orange-500 transition-colors" />
                             </div>
-                            <button onClick={() => { navigator.clipboard.writeText(s.pix); setCopiedId(s.id); setTimeout(() => setCopiedId(null), 2000); }} className={`p-2 rounded-lg transition-all ${copiedId === s.id ? 'bg-emerald-600' : 'bg-slate-800'} text-white`}>
-                              {copiedId === s.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            <button 
+                              onClick={() => { 
+                                navigator.clipboard.writeText(s.pix); 
+                                setCopiedId(s.id); 
+                                setTimeout(() => setCopiedId(null), 2000); 
+                              }} 
+                              className={`p-3 rounded-xl transition-all shadow-lg ${copiedId === s.id ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-[#FF5C00] hover:text-white'}`}
+                            >
+                              {copiedId === s.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                             </button>
                           </div>
                         )}
@@ -461,35 +537,34 @@ const App: React.FC = () => {
                     ))}
                   </div>
                 )}
-              </div>
-            </div>
+             </div>
           </section>
 
-          {/* Recent History Card - Permanent Trash Icon */}
+          {/* Recent History Card */}
           {recentEvents.length > 0 && (
-            <section className="bg-slate-900/30 rounded-[32px] p-6 md:p-8 border border-slate-800">
-              <h2 className="text-[10px] font-black text-slate-500 flex items-center gap-2 mb-5 uppercase tracking-[0.15em]">
-                <History className="w-4 h-4 text-slate-600" /> Meus Rolês Recentes
+            <section className="bg-slate-900/20 rounded-[40px] p-8 border border-slate-900">
+              <h2 className="text-[10px] font-black text-slate-500 flex items-center gap-3 mb-6 uppercase tracking-[0.3em]">
+                <History className="w-5 h-5 text-slate-700" /> Histórico Local
               </h2>
-              <div className="flex flex-col gap-2">
+              <div className="space-y-3">
                 {recentEvents.map((event) => (
-                  <div key={event.id} className="flex items-center gap-2 w-full">
+                  <div key={event.id} className="flex items-center gap-2 group">
                     <button 
                       onClick={() => { window.history.replaceState({}, '', `?id=${event.id}`); loadEvent(event.id); }} 
-                      className={`flex-1 flex items-center justify-between p-3.5 rounded-xl transition-all border ${eventId === event.id ? 'bg-[#FF5C00]/10 border-[#FF5C00]/50' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}
+                      className={`flex-1 flex items-center justify-between p-5 rounded-2xl transition-all border ${eventId === event.id ? 'bg-orange-500/10 border-orange-500/50' : 'bg-slate-950 border-slate-900 hover:border-slate-800'}`}
                     >
                       <div className="flex flex-col items-start overflow-hidden text-left pr-4">
-                        <span className={`font-bold truncate text-xs ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-300'}`}>{event.name}</span>
-                        <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">ID: {event.id?.split('-')[0] || '---'}</span>
+                        <span className={`font-black truncate text-sm uppercase ${eventId === event.id ? 'text-orange-500' : 'text-slate-200'}`}>{event.name}</span>
+                        <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mt-1">ID: {event.id?.split('-')[0]}</span>
                       </div>
-                      <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${eventId === event.id ? 'text-[#FF5C00]' : 'text-slate-700'}`} />
+                      <ChevronRight className={`w-4 h-4 shrink-0 ${eventId === event.id ? 'text-orange-500' : 'text-slate-800'}`} />
                     </button>
                     <button 
                       onClick={(e) => removeFromHistory(e, event.id)}
-                      className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-600 hover:text-red-500 transition-colors shrink-0"
+                      className="p-5 bg-slate-950 border border-slate-900 rounded-2xl text-slate-800 hover:text-red-500 transition-all shadow-sm"
                       title="Excluir do histórico"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
                 ))}
@@ -498,7 +573,15 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
-      <footer className="mt-12 text-center text-slate-700 text-[9px] font-black uppercase tracking-[0.3em] pb-8">CRIADO À BASE DE CERVEJA E PARAFUSO</footer>
+
+      <footer className="mt-20 text-center">
+        <div className="inline-flex items-center gap-3 px-6 py-3 bg-slate-950 rounded-full border border-slate-900 shadow-xl">
+           <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+           <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em]">
+             Ratatah v1.0 • Built for legends
+           </span>
+        </div>
+      </footer>
     </div>
   );
 };
